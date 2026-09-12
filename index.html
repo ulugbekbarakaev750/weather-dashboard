@@ -5,14 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Weather Dashboard</title>
     
-    <!-- Стили и шрифты -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <!-- Иконки погоды -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/weather-icons/2.0.12/css/weather-icons.min.css">
-    <!-- Chart.js для графиков -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Telegram Web App API -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <style>
@@ -34,9 +30,13 @@
         .loader { border: 4px solid rgba(128,128,128,0.2); border-left-color: #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        /* Скрытие скроллбара для прогноза */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* ИСПРАВЛЕНИЕ СКРОЛЛА ДЛЯ ПРОГНОЗА */
+        .scroll-x { 
+            overflow-x: auto; 
+            -webkit-overflow-scrolling: touch; /* Плавный скролл на iOS */
+            scrollbar-width: none; /* Firefox */
+        }
+        .scroll-x::-webkit-scrollbar { display: none; /* Chrome/Safari */ }
     </style>
 </head>
 <body class="min-h-screen p-4 pb-20">
@@ -48,16 +48,19 @@
             <div class="flex gap-2 mb-3">
                 <input type="text" id="search-input" placeholder="Введите город..." 
                        class="w-full px-4 py-2 rounded-xl bg-black/5 dark:bg-white/10 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button id="search-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold transition-colors">
-                    🔍
-                </button>
+                <button id="search-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold transition-colors">🔍</button>
             </div>
             <button id="geo-btn" class="w-full py-2 rounded-xl bg-gray-200 dark:bg-gray-700 text-sm font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform">
                 📍 Моя геопозиция
             </button>
         </div>
 
-        <!-- Главный экран (Спиннер / Погода) -->
+        <!-- Алерты (Погодные предупреждения) -->
+        <div id="alerts-container" class="hidden space-y-2">
+            <!-- Сюда JS будет добавлять красные/желтые плашки -->
+        </div>
+
+        <!-- Главный экран -->
         <div id="loading-state" class="hidden text-center py-10">
             <div class="loader"></div>
             <p class="text-secondary text-sm">Загрузка данных...</p>
@@ -95,7 +98,33 @@
                 </div>
             </div>
 
-            <!-- График на 24 часа -->
+            <!-- НОВЫЕ БЛОКИ: Солнце и УФ-индекс -->
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Солнце -->
+                <div class="card rounded-2xl p-4 shadow-sm border flex flex-col justify-between">
+                    <h3 class="text-xs font-semibold text-secondary mb-2">☀️ Солнце</h3>
+                    <div class="flex justify-between items-center text-sm">
+                        <div class="flex flex-col items-center">
+                            <i class="wi wi-sunrise text-orange-400 text-lg mb-1"></i>
+                            <span id="sunrise" class="font-bold">--:--</span>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <i class="wi wi-sunset text-red-400 text-lg mb-1"></i>
+                            <span id="sunset" class="font-bold">--:--</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- УФ-индекс -->
+                <div class="card rounded-2xl p-4 shadow-sm border flex flex-col justify-between">
+                    <h3 class="text-xs font-semibold text-secondary mb-2">🕶️ УФ-индекс</h3>
+                    <div class="flex items-center justify-center gap-2">
+                        <span id="uv-index" class="text-2xl font-extrabold text-purple-500">0</span>
+                        <span id="uv-desc" class="text-xs font-medium text-secondary max-w-[60px] leading-tight">Низкий</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- График на 24 часа (ИСПРАВЛЕННЫЙ) -->
             <div class="card rounded-2xl p-4 shadow-sm border">
                 <h3 class="text-sm font-semibold mb-3 text-secondary">📈 Температура (24ч)</h3>
                 <div class="h-40 relative w-full">
@@ -103,20 +132,21 @@
                 </div>
             </div>
 
-            <!-- Прогноз на 5 дней -->
+            <!-- Прогноз на 5 дней (ИСПРАВЛЕННЫЙ СКРОЛЛ) -->
             <div class="card rounded-2xl p-4 shadow-sm border">
                 <h3 class="text-sm font-semibold mb-3 text-secondary">📅 Прогноз на 5 дней</h3>
-                <div id="forecast-container" class="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                <!-- Добавлен класс scroll-x и flex -->
+                <div id="forecast-container" class="flex gap-3 scroll-x pb-2">
                     <!-- Карточки генерируются через JS -->
                 </div>
             </div>
         </div>
         
-        <!-- Приветствие (если нет данных) -->
+        <!-- Приветствие -->
         <div id="welcome-state" class="text-center py-10">
             <i class="wi wi-cloudy text-6xl text-secondary mb-4"></i>
             <h2 id="greeting" class="text-xl font-bold">Привет!</h2>
-            <p class="text-secondary mt-2">Введи город или нажми на геолокацию, чтобы узнать погоду.</p>
+            <p class="text-secondary mt-2">Введи город или нажми на геолокацию.</p>
         </div>
 
     </div>
